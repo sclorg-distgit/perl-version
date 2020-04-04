@@ -1,0 +1,65 @@
+From eecfc44fbd6659ed35719038ecf2b029fe20cfd5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Petr=20P=C3=ADsa=C5=99?= <ppisar@redhat.com>
+Date: Mon, 25 Nov 2019 16:48:33 +0100
+Subject: [PATCH] Subject: [PATCH] ensure locale_name_on_entry isn't clobbered
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+If the return value of setlocale() is static storage, the call to
+setlocale(LC_NUMERIC, "C"); could overwrite it.
+
+If the return value of setlocale() is malloced, the call to
+setlocale(LC_NUMERIC, "C"); could free it.
+
+Either way, we need to copy it.  Fixes gh #17054 rt134212
+
+Petr Písař: Ported to version-0.9924 from perl commit
+bcb1da5c29c3a2534a0e43874974b83c9c8b174c.
+
+Signed-off-by: Petr Písař <ppisar@redhat.com>
+---
+ vutil/vutil.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/vutil/vutil.c b/vutil/vutil.c
+index 5d183a0..69c8351 100644
+--- a/vutil/vutil.c
++++ b/vutil/vutil.c
+@@ -638,6 +638,8 @@ VER_NV:
+             if (   strNE(locale_name_on_entry, "C")
+                 && strNE(locale_name_on_entry, "POSIX"))
+             {
++                /* the setlocale() call might free or overwrite the name */
++                locale_name_on_entry = savepv(locale_name_on_entry);
+                 setlocale(LC_NUMERIC, "C");
+             }
+             else {  /* This value indicates to the restore code that we didn't
+@@ -661,6 +663,8 @@ VER_NV:
+                 if (   strNE(locale_name_on_entry, "C")
+                     && strNE(locale_name_on_entry, "POSIX"))
+                 {
++                    /* the setlocale() call might free or overwrite the name */
++                    locale_name_on_entry = savepv(locale_name_on_entry);
+                     setlocale(LC_NUMERIC, "C");
+                 }
+                 else {  /* This value indicates to the restore code that we
+@@ -710,6 +714,7 @@ VER_NV:
+ 
+             if (locale_name_on_entry) {
+                 setlocale(LC_NUMERIC, locale_name_on_entry);
++                Safefree(locale_name_on_entry);
+             }
+ 
+             LC_NUMERIC_UNLOCK;  /* End critical section */
+@@ -718,6 +723,7 @@ VER_NV:
+ 
+             if (locale_name_on_entry) {
+                 setlocale(LC_NUMERIC, locale_name_on_entry);
++                Safefree(locale_name_on_entry);
+                 LC_NUMERIC_UNLOCK;
+             }
+             else if (locale_obj_on_entry == PL_underlying_numeric_obj) {
+-- 
+2.21.0
+
